@@ -20,10 +20,12 @@
     CGSSetConnectionProperty(_CGSDefaultConnection(), _CGSDefaultConnection(), propertyString, kCFBooleanTrue);
     CFRelease(propertyString);
     // Hide the cursor and wait
-    CGDisplayHideCursor(kCGDirectMainDisplay);
+    // TODO[q]
+//    CGDisplayHideCursor(kCGDirectMainDisplay);
 }
 
 + (void) unhide {
-    CGDisplayShowCursor(CGMainDisplayID());
+    // TODO[q]
+//    CGDisplayShowCursor(CGMainDisplayID());
 }
 @end

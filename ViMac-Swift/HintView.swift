@@ -11,7 +11,7 @@ import AXSwift
 
 class HintView: NSView {
     static let borderColor = NSColor.darkGray
-    static let backgroundColor = NSColor(red: 255 / 255, green: 224 / 255, blue: 112 / 255, alpha: 1)
+    static let backgroundColor = NSColor(red: 255 / 255, green: 224 / 255, blue: 112 / 255, alpha: 0.5)
     static let untypedHintColor = NSColor.black
     static let typedHintColor = NSColor(red: 212 / 255, green: 172 / 255, blue: 58 / 255, alpha: 1)
 
@@ -21,21 +21,24 @@ class HintView: NSView {
     let borderWidth: CGFloat = 1.0
     let cornerRadius: CGFloat = 3.0
 
-    required init(associatedElement: Element, hintTextSize: CGFloat, hintText: String, typedHintText: String) {
+    required init(associatedElement: Element, hintTextSize: CGFloat, hintText: String, typedHintText: String, bgColor: NSColor = noColor) {
         self.associatedElement = associatedElement
         super.init(frame: .zero)
 
         self.hintTextView = HintText(hintTextSize: hintTextSize, hintText: hintText, typedHintText: typedHintText)
         self.subviews.append(hintTextView!)
-
+        
         self.wantsLayer = true
         
         
         self.layer?.borderWidth = borderWidth
         
-        self.layer?.backgroundColor = HintView.backgroundColor.cgColor
-        self.layer?.borderColor = HintView.borderColor.cgColor
-        self.layer?.cornerRadius = cornerRadius
+//        self.layer?.backgroundColor = HintView.backgroundColor.cgColor
+//        self.layer?.borderColor = HintView.borderColor.cgColor
+        let newBgColor = bgColor.withAlphaComponent(0.81)
+        self.layer?.backgroundColor = newBgColor.cgColor
+        self.layer?.borderColor = newBgColor.cgColor
+//        self.layer?.cornerRadius = cornerRadius
 
         self.translatesAutoresizingMaskIntoConstraints = false
         
@@ -93,8 +96,10 @@ class HintText: NSTextField {
     
     func setup(hintTextSize: CGFloat, hintText: String, typedHintText: String) {
         self.stringValue = hintText
-        self.font = NSFont.systemFont(ofSize: hintTextSize, weight: .bold)
-        self.textColor = .black
+//        self.font = NSFont.systemFont(ofSize: hintTextSize, weight: .bold)
+        self.font = NSFont.systemFont(ofSize: hintTextSize)
+//        self.textColor = .black
+        self.textColor = .white
 
         // isBezeled causes unwanted padding.
         self.isBezeled = false
@@ -120,5 +125,38 @@ class HintText: NSTextField {
             attr.addAttributes([NSAttributedString.Key.foregroundColor : HintView.typedHintColor], range: typedRange)
         }
         self.attributedStringValue = attr
+    }
+}
+
+class BoundingBoxView: NSView {
+    private var borderColor: NSColor = noColor
+    
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+    }
+    
+    init(frame frameRect: NSRect, borderColor: NSColor = noColor) {
+        super.init(frame: frameRect)
+        self.borderColor = borderColor
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+
+        
+//        let path = NSBezierPath(rect: bounds)
+//        NSColor.red.setFill()
+//        path.fill()
+        
+        let border:NSBezierPath = NSBezierPath(rect: bounds)
+//          let borderColor = NSColor.red
+        self.borderColor.set()
+        
+          border.lineWidth = 1.0
+          border.stroke()
     }
 }
