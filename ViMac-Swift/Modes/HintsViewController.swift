@@ -7,12 +7,13 @@
 //
 
 import Cocoa
+import AXSwift
 
 class HintsViewController: NSViewController {
     let hints: [Hint]
     let textSize: CGFloat
     var typed: String
-
+    
     var hintViews: [HintView]!
     
     init(hints: [Hint], textSize: CGFloat, typed: String = "") {
@@ -29,17 +30,65 @@ class HintsViewController: NSViewController {
     override func loadView() {
         self.view = NSView()
     }
-
+    
     override func viewDidAppear() {
         super.viewDidAppear()
         
         self.hintViews = hints
             .map { renderHint($0) }
             .compactMap({ $0 })
-
         for hintView in self.hintViews {
             self.view.addSubview(hintView)
         }
+        
+        let boundingBoxes = hints
+            .map { renderBoundingBox($0) }
+            .compactMap({ $0 })
+        for bb in boundingBoxes {
+            self.view.addSubview(bb)
+        }
+    }
+    
+    func renderBoundingBox(_ hint:Hint) -> BoundingBoxView? {
+        // TODO[q]
+//        if !Element.isActionable(hint.element) {
+//            return nil
+//        }
+        
+        // Set element frame
+        let valuesOptional = try? UIElement
+            .init(hint.element.rawElement)
+            .getMultipleAttributes([.size, .position, .role])
+        guard let values = valuesOptional else {
+            return nil
+        }
+//        guard let role: String = values[Attribute.role] as! String? else { return nil }
+        guard let size: NSSize = values[Attribute.size] as! NSSize? else { return nil }
+        guard let position: NSPoint = values[Attribute.position] as! NSPoint? else { return nil }
+        var frame = NSRect(origin: position, size: size)
+        
+        // Set element frame.origin
+        guard let elementFrame = self.elementFrame(hint.element) else { return nil }
+        let hintOrigin: NSPoint = {
+            // position hint on bottom-left of AXLinks (see #373)
+            if hint.element.role == "AXLink" {
+                return elementFrame.origin
+            }
+            
+            // position hint on center of element
+            //            let elementCenter = GeometryUtils.center(elementFrame)
+            //            return NSPoint(
+            //                x: elementCenter.x - (view.intrinsicContentSize.width / 2),
+            //                y: elementCenter.y - (view.intrinsicContentSize.height / 2)
+            //            )
+            return elementFrame.origin
+        }()
+        if hintOrigin.x.isNaN || hintOrigin.y.isNaN {
+            return nil
+        }
+        frame.origin = hintOrigin
+        
+        return BoundingBoxView(frame: frame, borderColor: hint.color)
     }
     
     func updateTyped(typed: String) {
@@ -66,38 +115,44 @@ class HintsViewController: NSViewController {
         }
         self.hintViews = shuffledHintViews
     }
-
+    
     // are you changing the location where hints are rendered?
     // make sure to update HintModeController#performHintAction as well
     func renderHint(_ hint: Hint) -> HintView? {
-        let view = HintView(associatedElement: hint.element, hintTextSize: CGFloat(textSize), hintText: hint.text, typedHintText: "")
+        let view = HintView(associatedElement: hint.element, hintTextSize: CGFloat(textSize), hintText: hint.text, typedHintText: "", bgColor: hint.color)
         guard let elementFrame = self.elementFrame(hint.element) else { return nil }
         
         let hintOrigin: NSPoint = {
-            // position hint on bottom-left of AXLinks (see #373)
-            if hint.element.role == "AXLink" {
-                return elementFrame.origin
-            }
-            
-            // position hint on center of element
-            let elementCenter = GeometryUtils.center(elementFrame)
             return NSPoint(
-                x: elementCenter.x - (view.intrinsicContentSize.width / 2),
-                y: elementCenter.y - (view.intrinsicContentSize.height / 2)
+                x: elementFrame.origin.x,
+                y: elementFrame.origin.y + (elementFrame.height)
             )
+            
+            // TODO[q]
+            // position hint on bottom-left of AXLinks (see #373)
+//            if hint.element.role == "AXLink" {
+//                return elementFrame.origin
+//            }
+//            
+//            // position hint on center of element
+//            let elementCenter = GeometryUtils.center(elementFrame)
+//            return NSPoint(
+//                x: elementCenter.x - (view.intrinsicContentSize.width / 2),
+//                y: elementCenter.y - (view.intrinsicContentSize.height / 2)
+//            )
         }()
-
+        
         if hintOrigin.x.isNaN || hintOrigin.y.isNaN {
             return nil
         }
-
+        
         view.frame.origin = hintOrigin
         return view
     }
     
     func elementFrame(_ element: Element) -> NSRect? {
         guard let window = self.view.window else { return nil }
-
+        
         let globalFrame = GeometryUtils.convertAXFrameToGlobal(
             element.clippedFrame ?? element.frame)
         let windowFrame = window.convertFromScreen(globalFrame)

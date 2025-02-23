@@ -20,7 +20,7 @@ extension NSEvent {
                 // this removes the "doot doot" sound when typing with CMD / CTRL held down
                 return nil
             })!
-
+            
             let cancel = Disposables.create {
                 NSEvent.removeMonitor(keyMonitor)
             }
@@ -34,17 +34,17 @@ enum HintModeInputIntent {
     case exit
     case backspace
     case advance(by: String, action: HintAction)
-
+    
     static func from(event: NSEvent) -> HintModeInputIntent? {
         if event.type != .keyDown { return nil }
         if event.keyCode == kVK_Escape ||
             (event.keyCode == kVK_ANSI_LeftBracket &&
-                event.modifierFlags.rawValue & NSEvent.ModifierFlags.control.rawValue == NSEvent.ModifierFlags.control.rawValue) {
+             event.modifierFlags.rawValue & NSEvent.ModifierFlags.control.rawValue == NSEvent.ModifierFlags.control.rawValue) {
             return .exit
         }
         if event.keyCode == kVK_Delete { return .backspace }
         if event.keyCode == kVK_Space { return .rotate }
-
+        
         if let characters = event.charactersIgnoringModifiers {
             let action: HintAction = {
                 if (event.modifierFlags.rawValue & NSEvent.ModifierFlags.shift.rawValue == NSEvent.ModifierFlags.shift.rawValue) {
@@ -59,7 +59,7 @@ enum HintModeInputIntent {
             }()
             return .advance(by: characters, action: action)
         }
-
+        
         return nil
     }
 }
@@ -69,24 +69,24 @@ class ContentViewController: NSViewController {
     init() {
         super.init(nibName: nil, bundle: nil)
     }
-
+    
     required init?(coder: NSCoder) {
         fatalError()
     }
-
+    
     override func loadView() {
         self.view = NSView()
     }
-
+    
     func setChildViewController(_ vc: NSViewController) {
         assert(self.children.count <= 1)
         removeChildViewController()
-
+        
         self.addChild(vc)
         vc.view.frame = self.view.frame
         self.view.addSubview(vc.view)
     }
-
+    
     func removeChildViewController() {
         guard let childVC = self.children.first else { return }
         childVC.view.removeFromSuperview()
@@ -94,9 +94,23 @@ class ContentViewController: NSViewController {
     }
 }
 
+let noColor = NSColor(red: 0, green: 0, blue: 0, alpha: 0)
+
 struct Hint {
     let element: Element
     let text: String
+    let color: NSColor
+    
+    init(element: Element, text: String, color: NSColor = noColor) {
+        self.element = element
+        self.text = text
+        
+        if color == noColor {
+            self.color = NSColor(red: .random(in: 0...1), green: .random(in: 0...1), blue: .random(in: 0...1), alpha: 1)
+        } else {
+            self.color = color
+        }
+    }
 }
 
 enum HintAction: String {
@@ -111,15 +125,15 @@ class HintModeUserInterface {
     let windowController: OverlayWindowController
     let contentViewController: ContentViewController
     var hintsViewController: HintsViewController?
-
+    
     let textSize = UserPreferences.HintMode.TextSizeProperty.readAsFloat()
-
+    
     init(window: Element?) {
         self.window = window
         self.windowController = OverlayWindowController()
         self.contentViewController = ContentViewController()
         self.windowController.window?.contentViewController = self.contentViewController
-
+        
         let _frame = frame()
         self.windowController.fitToFrame(_frame)
     }
@@ -128,9 +142,9 @@ class HintModeUserInterface {
         guard let window = window else {
             return NSScreen.main!.frame
         }
-
+        
         let windowFrame = GeometryUtils.convertAXFrameToGlobal(window.frame)
-
+        
         // expected: When an active window is fullscreen in a non-primary display, NSScreen.main returns the non-primary display
         // actual: it returns the primary display
         // this is a workaround for that edge case
@@ -143,28 +157,28 @@ class HintModeUserInterface {
         // it is visible in other screens if the "Displays have separate spaces" option is disabled
         return windowFrame.union(NSScreen.main!.frame)
     }
-
+    
     func show() {
         self.windowController.showWindow(nil)
         self.windowController.window?.makeKeyAndOrderFront(nil)
     }
-
+    
     func hide() {
         self.contentViewController.view.removeFromSuperview()
         self.windowController.window?.contentViewController = nil
         self.windowController.close()
     }
-
+    
     func setHints(hints: [Hint]) {
         self.hintsViewController = HintsViewController(hints: hints, textSize: CGFloat(textSize), typed: "")
         self.contentViewController.setChildViewController(self.hintsViewController!)
     }
-
+    
     func updateInput(input: String) {
         guard let hintsViewController = self.hintsViewController else { return }
         hintsViewController.updateTyped(typed: input)
     }
-
+    
     func rotateHints() {
         guard let hintsViewController = self.hintsViewController else { return }
         hintsViewController.rotateHints()
@@ -177,12 +191,14 @@ class HintModeController: ModeController {
     
     private let startTime = CFAbsoluteTimeGetCurrent()
     private let disposeBag = DisposeBag()
-
+    
     let hintCharacters = UserPreferences.HintMode.CustomCharactersProperty.read()
     
     private var ui: HintModeUserInterface?
     private var input: String?
     private var hints: [Hint]?
+    
+    private var inputSeq: Int = 0
     
     let app: NSRunningApplication?
     let window: Element?
@@ -191,7 +207,7 @@ class HintModeController: ModeController {
         self.app = app
         self.window = window
     }
-
+    
     func activate() {
         if activated { return }
         activated = true
@@ -215,7 +231,7 @@ class HintModeController: ModeController {
     func deactivate() {
         if !activated { return }
         guard let ui = ui else { return }
-
+        
         activated = false
         
         Analytics.shared().track("Hint Mode Deactivated", properties: [
@@ -243,7 +259,7 @@ class HintModeController: ModeController {
     
     private func onKeyPress(event: NSEvent) {
         guard let intent = HintModeInputIntent.from(event: event) else { return }
-
+        
         switch intent {
         case .exit:
             self.deactivate()
@@ -263,11 +279,14 @@ class HintModeController: ModeController {
                   let input = input,
                   let hints = hints else { return }
             
-            let newInput = input + by
-            self.input = newInput
-
+//            self.inputSeq += 1
+//            self.input = String(self.inputSeq)
+//            
+            guard let newInput = self.input else { return }
+                        self.input = newInput
+            
             let hintsWithInputAsPrefix = hints.filter { $0.text.starts(with: newInput.uppercased()) }
-
+            
             if hintsWithInputAsPrefix.count == 0 {
                 Analytics.shared().track("Hint Mode Deadend", properties: [
                     "Target Application": app?.bundleIdentifier as Any
@@ -275,9 +294,9 @@ class HintModeController: ModeController {
                 self.deactivate()
                 return
             }
-
+            
             let matchingHint = hintsWithInputAsPrefix.first(where: { $0.text == newInput.uppercased() })
-
+            
             if let matchingHint = matchingHint {
                 Analytics.shared().track("Hint Mode Action Performed", properties: [
                     "Target Application": app?.bundleIdentifier as Any,
@@ -288,7 +307,7 @@ class HintModeController: ModeController {
                 performHintAction(matchingHint, action: action)
                 return
             }
-
+            
             ui.updateInput(input: newInput)
         }
     }
@@ -305,7 +324,7 @@ class HintModeController: ModeController {
             )
             .disposed(by: disposeBag)
     }
-
+    
     private func listenForKeyPress(onEvent: @escaping (NSEvent) -> Void) {
         NSEvent.localEventMonitor(matching: .keyDown)
             .observeOn(MainScheduler.instance)
@@ -329,9 +348,9 @@ class HintModeController: ModeController {
             }
             return GeometryUtils.center(element.frame)
         }()
-
+        
         Utils.moveMouse(position: clickPosition)
-
+        
         switch action {
         case .leftClick:
             Utils.leftClickMouse(position: clickPosition)
@@ -348,7 +367,7 @@ class HintModeController: ModeController {
         let timeElapsed = CFAbsoluteTimeGetCurrent() - self.startTime
         os_log("[Hint mode] query time: %@", log: Log.accessibility, String(describing: timeElapsed))
     }
-
+    
     private func logError(_ e: Error) {
         os_log("[Hint mode] query error: %@", log: Log.accessibility, String(describing: e))
     }

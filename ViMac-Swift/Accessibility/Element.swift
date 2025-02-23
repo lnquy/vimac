@@ -45,4 +45,15 @@ class Element {
     func setClippedFrame(_ clippedFrame: NSRect) {
         self.clippedFrame = clippedFrame
     }
+    
+    static public func isActionable(_ element: Element) -> Bool {
+        let ignoredActions: Set = [
+            "AXShowMenu",
+            "AXScrollToVisible",
+            "AXShowDefaultUI",
+            "AXShowAlternateUI"
+        ]
+        let actions = Set(element.actions).subtracting(ignoredActions)
+        return actions.count > 0
+    }
 }
